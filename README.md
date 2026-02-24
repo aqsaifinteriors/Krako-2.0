@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/krako-logo-main.png" width="240">
+</p>
+
 # Krako 2.0
 
 > Energy-efficient, triadic multi-tier inference infrastructure enabling adaptive routing across heterogeneous edge-cloud nodes.
