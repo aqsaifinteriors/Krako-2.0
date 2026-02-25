@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -309,6 +310,9 @@ def run_demo(args: argparse.Namespace) -> dict[str, Any]:
         trust_updates += consume_new_events_for_trust()
 
     # Replay billing + trust over append-only events.
+    if args.kind == "llm_pod":
+        os.environ["KRAKO_BILL_LLM_FROM_WORKUNIT_COMPLETED"] = "0"
+        os.environ["KRAKO_BILL_LLM_FROM_INVOCATION"] = "1"
     billing = BillingConsumer(
         ledger_path=data_dir / "billing_ledger.jsonl",
         dedupe_path=data_dir / "billing_dedupe.json",
@@ -317,6 +321,17 @@ def run_demo(args: argparse.Namespace) -> dict[str, Any]:
     for event in event_log.read_events():
         if billing.consume(event):
             billed += 1
+
+    billing_rows: list[dict[str, Any]] = []
+    ledger_path = data_dir / "billing_ledger.jsonl"
+    if ledger_path.exists():
+        for line in ledger_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            billing_rows.append(json.loads(line))
+    cpu_rows = sum(1 for row in billing_rows if row.get("line_item_type") == "workunit_cpu")
+    llm_rows = sum(1 for row in billing_rows if row.get("line_item_type") == "llm_tokens")
+    ledger_llm_total = "0.000000"
 
     wallet = compute_wallet_snapshot(
         ledger_path=data_dir / "billing_ledger.jsonl",
@@ -328,6 +343,7 @@ def run_demo(args: argparse.Namespace) -> dict[str, Any]:
         ledger_path=data_dir / "billing_ledger.jsonl",
     )
     write_anomaly_report(anomalies, data_dir / "billing_anomalies.json")
+    ledger_llm_total = anomalies["checks"]["global"]["ledger_llm_total_usd"]
 
     claim_count = 0
     completed_count = 0
@@ -382,6 +398,8 @@ def run_demo(args: argparse.Namespace) -> dict[str, Any]:
         "llm_invocations_completed_count": llm_invocations_completed_count,
         "total_llm_tokens_reported": total_llm_tokens_reported,
         "billing": {"records_written": billed, "trust_updates": trust_updates},
+        "billing_breakdown": {"cpu_rows": cpu_rows, "llm_rows": llm_rows},
+        "ledger_llm_total_usd": ledger_llm_total,
         "wallet": {
             "grand_total_debit_usd": wallet["grand_total_debit_usd"],
             "grand_record_count": wallet["grand_record_count"],

@@ -16,8 +16,10 @@ _REQUIRED_LEDGER_FIELDS = {
     "tenant_id",
     "correlation_id",
     "execution_session_id",
+    "line_item_type",
     "cpu_seconds",
     "llm_tokens",
+    "llm_tokens_event_total",
     "cpu_unit_price_usd",
     "llm_unit_price_usd_per_1k",
     "subtotal_cpu_usd",
@@ -92,15 +94,69 @@ def _read_expected_session_totals(event_log_path: Path) -> dict[str, Any]:
     return expected
 
 
+def _session_id_from_payload(payload: dict[str, Any]) -> str | None:
+    value = payload.get("execution_session_id")
+    if isinstance(value, str) and value:
+        return value
+    corr = payload.get("correlation_id")
+    if isinstance(corr, str) and corr.startswith("sess:"):
+        return corr[len("sess:") :]
+    work_unit_id = payload.get("work_unit_id")
+    if isinstance(work_unit_id, str) and work_unit_id.startswith("sess:"):
+        return work_unit_id[len("sess:") :]
+    return None
+
+
+def _read_expected_llm_tokens(event_log_path: Path) -> dict[str, int]:
+    expected: dict[str, int] = {}
+    if not event_log_path.exists():
+        return expected
+
+    with event_log_path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("type") != "llm.invocation.completed":
+                continue
+
+            payload = event.get("payload")
+            if not isinstance(payload, dict):
+                continue
+
+            session_id = _session_id_from_payload(payload)
+            if not session_id:
+                continue
+
+            raw_tokens = payload.get("total_tokens", payload.get("llm_tokens"))
+            try:
+                tokens = int(raw_tokens)
+            except Exception:
+                continue
+            if tokens < 0:
+                continue
+            expected[session_id] = expected.get(session_id, 0) + tokens
+
+    return expected
+
+
 def check_billing_anomalies(event_log_path: Path, ledger_path: Path) -> dict[str, Any]:
     expected_sessions = _read_expected_session_totals(event_log_path)
+    expected_llm_tokens_by_session = _read_expected_llm_tokens(event_log_path)
 
     ledger_total = dec("0")
+    ledger_llm_total = dec("0")
+    ledger_cpu_total = dec("0")
     ledger_count = 0
     missing_fields_rows = 0
     invalid_total_6dp_rows = 0
 
     session_actuals: dict[str, Any] = {}
+    session_actual_llm_tokens: dict[str, int] = {}
     session_mappings: dict[str, bool] = {}
 
     if ledger_path.exists():
@@ -131,6 +187,11 @@ def check_billing_anomalies(event_log_path: Path, ledger_path: Path) -> dict[str
                     total = dec(total_raw)
 
                 ledger_total += total
+                line_item_type = row.get("line_item_type")
+                if line_item_type == "llm_tokens":
+                    ledger_llm_total += total
+                elif line_item_type == "workunit_cpu":
+                    ledger_cpu_total += total
 
                 exec_sess = row.get("execution_session_id")
                 corr = row.get("correlation_id")
@@ -146,6 +207,16 @@ def check_billing_anomalies(event_log_path: Path, ledger_path: Path) -> dict[str
                 if mapped_session:
                     session_mappings[mapped_session] = True
                     session_actuals[mapped_session] = session_actuals.get(mapped_session, dec("0")) + total
+                    if row.get("line_item_type") == "llm_tokens":
+                        token_value_raw = row.get("llm_tokens_event_total", row.get("llm_tokens", 0))
+                        try:
+                            token_value = int(token_value_raw)
+                        except Exception:
+                            token_value = 0
+                        if token_value > 0:
+                            session_actual_llm_tokens[mapped_session] = (
+                                session_actual_llm_tokens.get(mapped_session, 0) + token_value
+                            )
 
     global_flags: list[str] = []
     if ledger_total < dec("0"):
@@ -159,23 +230,32 @@ def check_billing_anomalies(event_log_path: Path, ledger_path: Path) -> dict[str
     sessions_checked = 0
     sessions_flagged = 0
 
-    for session_id in sorted(expected_sessions.keys()):
+    all_session_ids = set(expected_sessions.keys()) | set(expected_llm_tokens_by_session.keys())
+    for session_id in sorted(all_session_ids):
         if not session_mappings.get(session_id, False):
             continue
 
-        expected = expected_sessions[session_id]
+        has_expected_usd = session_id in expected_sessions
+        expected = expected_sessions.get(session_id, dec("0"))
         actual = quant6(session_actuals.get(session_id, dec("0")))
         diff = quant6(abs(expected - actual))
 
-        reason: str | None = None
-        if diff > _TOL:
-            reason = "absolute_diff_exceeds_tolerance"
-        if expected > dec("0"):
-            ratio = diff / expected
-            if ratio > dec("0.01"):
-                reason = "relative_diff_exceeds_1_percent"
+        reasons: list[str] = []
+        if has_expected_usd:
+            if diff > _TOL:
+                reasons.append("absolute_diff_exceeds_tolerance")
+            if expected > dec("0"):
+                ratio = diff / expected
+                if ratio > dec("0.01"):
+                    reasons.append("relative_diff_exceeds_1_percent")
 
-        flagged = reason is not None
+        expected_tokens = int(expected_llm_tokens_by_session.get(session_id, 0))
+        actual_tokens = int(session_actual_llm_tokens.get(session_id, 0))
+        token_diff = abs(expected_tokens - actual_tokens)
+        if token_diff > 0:
+            reasons.append("llm_token_mismatch")
+
+        flagged = len(reasons) > 0
         if flagged:
             sessions_flagged += 1
         sessions_checked += 1
@@ -186,7 +266,10 @@ def check_billing_anomalies(event_log_path: Path, ledger_path: Path) -> dict[str
                 "expected_usd": serialize_decimal(expected),
                 "actual_usd": serialize_decimal(actual),
                 "diff_usd": serialize_decimal(diff),
-                "flagged_reason": reason,
+                "expected_llm_tokens_total": expected_tokens,
+                "actual_llm_tokens_total": actual_tokens,
+                "llm_tokens_diff": token_diff,
+                "flagged_reason": ",".join(reasons) if reasons else None,
             }
         )
 
@@ -196,6 +279,8 @@ def check_billing_anomalies(event_log_path: Path, ledger_path: Path) -> dict[str
         "checks": {
             "global": {
                 "ledger_total_usd": serialize_decimal(quant6(ledger_total)),
+                "ledger_cpu_total_usd": serialize_decimal(quant6(ledger_cpu_total)),
+                "ledger_llm_total_usd": serialize_decimal(quant6(ledger_llm_total)),
                 "ledger_record_count": ledger_count,
                 "missing_required_schema_fields_count": missing_fields_rows,
                 "invalid_total_usd_6dp_count": invalid_total_6dp_rows,

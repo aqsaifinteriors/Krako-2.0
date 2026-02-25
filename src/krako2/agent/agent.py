@@ -279,6 +279,8 @@ class NodeAgent:
         llm_payload = {
             "execution_session_id": payload.get("execution_session_id"),
             "work_unit_id": work_unit_id,
+            "tenant_id": str(payload.get("tenant_id", "default")),
+            "correlation_id": str(payload.get("correlation_id", f"sess:{work_unit_id}")),
             "node_id": self.node_id,
             "model": model,
             "tokens_in": tokens_in,
@@ -307,6 +309,8 @@ class NodeAgent:
         llm_payload = {
             "execution_session_id": payload.get("execution_session_id"),
             "work_unit_id": work_unit_id,
+            "tenant_id": str(payload.get("tenant_id", "default")),
+            "correlation_id": str(payload.get("correlation_id", f"sess:{work_unit_id}")),
             "node_id": self.node_id,
             "model": model,
             "provider": self.llm_provider,

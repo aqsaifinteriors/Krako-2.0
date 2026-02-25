@@ -12,7 +12,7 @@ from krako2.domain.models import Event, EventType
 def _make_event(event_id: str, cpu_seconds: str = "10", llm_tokens: int = 2000) -> Event:
     return Event(
         id=event_id,
-        type=EventType.WORKUNIT_SUBMITTED,
+        type=EventType.WORKUNIT_COMPLETED,
         idempotency_key=f"idem:{event_id}",
         work_unit_id=f"wu:{event_id}",
         payload={
@@ -91,8 +91,10 @@ def test_schema_fields_present(tmp_path: Path) -> None:
         "tenant_id",
         "correlation_id",
         "execution_session_id",
+        "line_item_type",
         "cpu_seconds",
         "llm_tokens",
+        "llm_tokens_event_total",
         "cpu_unit_price_usd",
         "llm_unit_price_usd_per_1k",
         "subtotal_cpu_usd",
