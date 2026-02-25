@@ -10,6 +10,8 @@
 /data/billing_dedupe.json
 /data/wallet_snapshot.json
 /data/billing_anomalies.json
+/data/node_registry.json
+/data/scheduler_state.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
