@@ -85,6 +85,17 @@ NODE_ID=node-1 python3 -m krako2.agent.runner
 
 ---
 
+## Dev: E2E Demo
+
+Run the deterministic end-to-end demo pipeline:
+
+```bash
+python3 scripts/e2e_demo.py --reset --polls 2
+python3 scripts/e2e_demo.py --data-dir data --polls 2
+```
+
+---
+
 ## Contributing
 
 Contributions are welcome. To contribute:
