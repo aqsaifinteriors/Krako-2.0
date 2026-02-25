@@ -8,6 +8,7 @@
 /data/*.jsonl
 /data/trust_state.json
 /data/billing_dedupe.json
+/data/wallet_snapshot.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

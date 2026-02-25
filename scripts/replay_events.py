@@ -11,6 +11,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from krako2.billing.consumer import BillingConsumer
+from krako2.billing.wallet import compute_wallet_snapshot
 from krako2.storage.event_log import EventLog
 from krako2.trust.consumer import TrustConsumer
 
@@ -21,6 +22,11 @@ def _parse_args() -> argparse.Namespace:
         "--reset-billing",
         action="store_true",
         help="Delete billing ledger and dedupe state before replay",
+    )
+    parser.add_argument(
+        "--write-wallet",
+        action="store_true",
+        help="Write wallet snapshot from billing ledger after replay",
     )
     return parser.parse_args()
 
@@ -61,6 +67,14 @@ def main() -> int:
         "billing_records_written": billing_count,
         "trust_updates_written": trust_count,
     }
+
+    if args.write_wallet:
+        wallet_snapshot = compute_wallet_snapshot(
+            ledger_path=data_dir / "billing_ledger.jsonl",
+            snapshot_path=data_dir / "wallet_snapshot.json",
+        )
+        summary["wallet_tenants"] = len(wallet_snapshot["tenants"])
+
     print(json.dumps(summary, sort_keys=True))
     return 0
 
