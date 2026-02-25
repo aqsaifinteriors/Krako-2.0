@@ -27,6 +27,7 @@ class EventType(str, Enum):
     WORKUNIT_SCHEDULING_DEFERRED = "workunit.scheduling.deferred"
     WORKUNIT_REJECTED = "workunit.rejected"
     WORKUNIT_SCHEDULED = "workunit.scheduled"
+    WORKUNIT_CLAIMED = "workunit.claimed"
     WORKUNIT_COMPLETED = "workunit.completed"
     WORKUNIT_FAILED = "workunit.failed"
     WORKUNIT_RETRY_SCHEDULED = "workunit.retry.scheduled"

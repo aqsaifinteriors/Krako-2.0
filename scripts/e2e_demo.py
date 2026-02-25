@@ -39,6 +39,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--burst", type=int, default=1)
     parser.add_argument("--polls", type=int, default=3)
     parser.add_argument("--simulate-pressure", choices=["none", "low", "high", "critical", "auto"], default="none")
+    parser.add_argument("--multi-agent", action="store_true")
     parser.add_argument("--reset", action="store_true")
     return parser.parse_args()
 
@@ -135,6 +136,8 @@ def run_demo(args: argparse.Namespace) -> dict[str, Any]:
 
     if args.reset:
         _reset_data(data_dir, effective_node_id)
+        if args.multi_agent:
+            (data_dir / f"agent_state_{effective_node_id}_b.json").unlink(missing_ok=True)
 
     _seed_node_registry(data_dir, "node-1", args.region)
     if args.kind == "llm_pod":
@@ -180,6 +183,13 @@ def run_demo(args: argparse.Namespace) -> dict[str, Any]:
         return updates
 
     agent = NodeAgent(node_id=effective_node_id, data_dir=data_dir)
+    second_agent: NodeAgent | None = None
+    if args.multi_agent:
+        second_agent = NodeAgent(
+            node_id=effective_node_id,
+            data_dir=data_dir,
+            state_path=data_dir / f"agent_state_{effective_node_id}_b.json",
+        )
     trust_updates = 0
     autoscaling_events_emitted = 0
     autoscaling_last_metrics = {"queue_depth": 0, "w95_wait_s": 0.0, "utilization": 0.0}
@@ -272,6 +282,10 @@ def run_demo(args: argparse.Namespace) -> dict[str, Any]:
         out = agent.poll_once()
         agent_stats["processed"] += out["processed"]
         agent_stats["skipped"] += out["skipped"]
+        if second_agent is not None:
+            out2 = second_agent.poll_once()
+            agent_stats["processed"] += out2["processed"]
+            agent_stats["skipped"] += out2["skipped"]
 
         if args.simulate_pressure == "auto":
             nodes_live = NodeRegistry(registry_path=data_dir / "node_registry.json").list_nodes()
@@ -309,6 +323,14 @@ def run_demo(args: argparse.Namespace) -> dict[str, Any]:
     )
     write_anomaly_report(anomalies, data_dir / "billing_anomalies.json")
 
+    claim_count = 0
+    completed_count = 0
+    for event in event_log.read_events():
+        if event.type.value == "workunit.claimed":
+            claim_count += 1
+        if event.type.value == "workunit.completed":
+            completed_count += 1
+
     summary = {
         "effective_node_id": effective_node_id,
         "capacity_state": autoscaling.load_state(),
@@ -336,6 +358,8 @@ def run_demo(args: argparse.Namespace) -> dict[str, Any]:
             "utilization": agent.utilization,
             "available_concurrency": agent.available_concurrency,
         },
+        "claim_count": claim_count,
+        "completed_count": completed_count,
         "billing": {"records_written": billed, "trust_updates": trust_updates},
         "wallet": {
             "grand_total_debit_usd": wallet["grand_total_debit_usd"],

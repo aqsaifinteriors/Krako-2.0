@@ -41,6 +41,7 @@ class NodeAgent:
         default_state = {
             "last_offset_bytes": 0,
             "processed_event_ids": [],
+            "claimed_dispatch_event_ids": [],
             "active_queue_depth": 0,
             "utilization": 0.2,
             "available_concurrency": 4,
@@ -124,6 +125,60 @@ class NodeAgent:
         state["utilization"] = float(self.utilization)
         state["available_concurrency"] = int(self.available_concurrency)
         self._atomic_write_state(state)
+
+    def _mark_claimed_dispatch(self, dispatch_event_id: str) -> None:
+        state = self._read_state()
+        ids = list(state.get("claimed_dispatch_event_ids", []))
+        if dispatch_event_id in ids:
+            return
+        ids.append(dispatch_event_id)
+        if len(ids) > 2000:
+            ids = ids[-2000:]
+        state["claimed_dispatch_event_ids"] = ids
+        state["active_queue_depth"] = int(self.active_queue_depth)
+        state["utilization"] = float(self.utilization)
+        state["available_concurrency"] = int(self.available_concurrency)
+        self._atomic_write_state(state)
+
+    def _is_already_claimed(self, work_unit_id: str, dispatch_event_id: str) -> bool:
+        state = self._read_state()
+        if dispatch_event_id in set(state.get("claimed_dispatch_event_ids", [])):
+            return True
+
+        for existing in self.publisher.event_log.read_events():
+            if existing.type != EventType.WORKUNIT_CLAIMED:
+                continue
+            payload = existing.payload if isinstance(existing.payload, dict) else {}
+            if payload.get("work_unit_id") != work_unit_id:
+                continue
+            if payload.get("dispatch_event_id") != dispatch_event_id:
+                continue
+            return True
+        return False
+
+    def _try_claim_dispatch(self, dispatch_event: dict[str, Any], payload: dict[str, Any]) -> bool:
+        work_unit_id = str(dispatch_event.get("work_unit_id", ""))
+        dispatch_event_id = str(dispatch_event.get("id", ""))
+        if not work_unit_id or not dispatch_event_id:
+            return False
+        if self._is_already_claimed(work_unit_id, dispatch_event_id):
+            return False
+
+        claim_payload = {
+            "work_unit_id": work_unit_id,
+            "selected_node_id": payload.get("selected_node_id"),
+            "node_id": self.node_id,
+            "dispatch_event_id": dispatch_event_id,
+        }
+        _, created = self.publisher.emit(
+            EventType.WORKUNIT_CLAIMED,
+            idempotency_key=f"claim:{work_unit_id}:{dispatch_event_id}:{self.node_id}",
+            work_unit_id=work_unit_id,
+            payload=claim_payload,
+        )
+        if created:
+            self._mark_claimed_dispatch(dispatch_event_id)
+        return created
 
     def emit_heartbeat(self) -> bool:
         epoch_ms = int(time.time() * 1000)
@@ -210,6 +265,9 @@ class NodeAgent:
             payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
             selected_node = payload.get("selected_node_id")
             if selected_node != self.node_id:
+                skipped += 1
+                continue
+            if not self._try_claim_dispatch(event, payload):
                 skipped += 1
                 continue
 
