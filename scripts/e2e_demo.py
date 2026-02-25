@@ -32,7 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--kind", default="cpu")
     parser.add_argument("--simulated-ms", type=int, default=10)
     parser.add_argument("--tenant-id", default="tenant-a")
-    parser.add_argument("--llm-tokens", type=int, default=0)
+    parser.add_argument("--llm-tokens", type=int, default=None)
     parser.add_argument("--polls", type=int, default=3)
     parser.add_argument("--reset", action="store_true")
     return parser.parse_args()
@@ -87,6 +87,23 @@ def _seed_node_registry(data_dir: Path, node_id: str, region: str) -> None:
         registry_path.write_text(json.dumps(raw, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def _upsert_node(registry_path: Path, node_doc: dict[str, Any]) -> None:
+    if not registry_path.exists():
+        registry_path.write_text(json.dumps({"nodes": [node_doc]}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return
+    raw = json.loads(registry_path.read_text(encoding="utf-8"))
+    nodes = raw.setdefault("nodes", [])
+    replaced = False
+    for idx, existing in enumerate(nodes):
+        if existing.get("node_id") == node_doc["node_id"]:
+            nodes[idx] = {**existing, **node_doc}
+            replaced = True
+            break
+    if not replaced:
+        nodes.append(node_doc)
+    registry_path.write_text(json.dumps(raw, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def _has_demo_completion(event_log: EventLog, work_unit_id: str, node_id: str, execution_session_id: str) -> bool:
     for event in event_log.read_events():
         if event.type.value != "workunit.completed":
@@ -104,11 +121,32 @@ def _has_demo_completion(event_log: EventLog, work_unit_id: str, node_id: str, e
 def run_demo(args: argparse.Namespace) -> dict[str, Any]:
     data_dir = Path(args.data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
+    effective_node_id = args.node_id
+    if args.kind == "llm_pod" and args.node_id == "node-1":
+        effective_node_id = "pod-1"
+    llm_tokens = args.llm_tokens if args.llm_tokens is not None else (1200 if args.kind == "llm_pod" else 0)
 
     if args.reset:
-        _reset_data(data_dir, args.node_id)
+        _reset_data(data_dir, effective_node_id)
 
-    _seed_node_registry(data_dir, args.node_id, args.region)
+    _seed_node_registry(data_dir, "node-1", args.region)
+    if args.kind == "llm_pod":
+        _upsert_node(
+            data_dir / "node_registry.json",
+            {
+                "node_id": "pod-1",
+                "enabled": True,
+                "health_status": "healthy",
+                "supported_kinds": ["llm_pod"],
+                "available_concurrency": 8,
+                "active_queue_depth": 0,
+                "utilization": 0.1,
+                "trust_score": 0.7,
+                "region": args.region,
+                "version": "0.1.0",
+                "last_heartbeat_ts": datetime.now(timezone.utc).isoformat(),
+            },
+        )
 
     event_log = EventLog(data_dir / "events.jsonl")
     publisher = EventPublisher(event_log)
@@ -132,7 +170,7 @@ def run_demo(args: argparse.Namespace) -> dict[str, Any]:
                 updates += 1
         return updates
 
-    agent = NodeAgent(node_id=args.node_id, data_dir=data_dir)
+    agent = NodeAgent(node_id=effective_node_id, data_dir=data_dir)
     trust_updates = 0
     # Ensure heartbeat exists before scheduling so trust can influence scheduling score.
     agent.emit_heartbeat()
@@ -149,15 +187,15 @@ def run_demo(args: argparse.Namespace) -> dict[str, Any]:
             "correlation_id": "sess:demo-1",
             "execution_session_id": "demo-1",
             "simulated_ms": args.simulated_ms,
-            "llm_tokens": args.llm_tokens,
+            "llm_tokens": llm_tokens,
             "attempt_index": 1,
         },
     )
 
     nodes = NodeRegistry(registry_path=data_dir / "node_registry.json").list_nodes()
-    if _has_demo_completion(event_log, work_unit.id, args.node_id, "demo-1"):
+    if _has_demo_completion(event_log, work_unit.id, effective_node_id, "demo-1"):
         scheduled = {
-            "selected_node_id": args.node_id,
+            "selected_node_id": effective_node_id,
             "dispatch_event_id": None,
             "status": "already_completed",
         }
@@ -198,6 +236,7 @@ def run_demo(args: argparse.Namespace) -> dict[str, Any]:
     write_anomaly_report(anomalies, data_dir / "billing_anomalies.json")
 
     summary = {
+        "effective_node_id": effective_node_id,
         "scheduled": scheduled,
         "agent": agent_stats,
         "billing": {"records_written": billed, "trust_updates": trust_updates},

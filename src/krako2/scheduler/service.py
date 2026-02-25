@@ -287,7 +287,13 @@ class SchedulerService:
         if selected_node_id is None:
             return None, debug
 
+        if work_unit.kind == "llm_pod":
+            selected_node = next((n for n in nodes if n.node_id == selected_node_id), None)
+            if selected_node is None or "llm_pod" not in selected_node.supported_kinds:
+                raise AssertionError("llm_pod work unit selected on non-llm_pod node")
+
         payload = {
+            **(work_unit.payload or {}),
             "work_unit_id": work_unit.id,
             "selected_node_id": selected_node_id,
             "score": debug["selected_score"],
