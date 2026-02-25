@@ -11,6 +11,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from krako2.billing.consumer import BillingConsumer
+from krako2.billing.anomaly import check_billing_anomalies, write_anomaly_report
 from krako2.billing.wallet import compute_wallet_snapshot
 from krako2.storage.event_log import EventLog
 from krako2.trust.consumer import TrustConsumer
@@ -27,6 +28,16 @@ def _parse_args() -> argparse.Namespace:
         "--write-wallet",
         action="store_true",
         help="Write wallet snapshot from billing ledger after replay",
+    )
+    parser.add_argument(
+        "--check-anomalies",
+        action="store_true",
+        help="Run billing anomaly cross-check and write report",
+    )
+    parser.add_argument(
+        "--fail-on-flag",
+        action="store_true",
+        help="Return non-zero when anomaly checks are flagged",
     )
     return parser.parse_args()
 
@@ -74,6 +85,21 @@ def main() -> int:
             snapshot_path=data_dir / "wallet_snapshot.json",
         )
         summary["wallet_tenants"] = len(wallet_snapshot["tenants"])
+
+    if args.check_anomalies:
+        report = check_billing_anomalies(
+            event_log_path=data_dir / "events.jsonl",
+            ledger_path=data_dir / "billing_ledger.jsonl",
+        )
+        write_anomaly_report(report, data_dir / "billing_anomalies.json")
+        summary["anomaly_global_flagged"] = report["summary"]["global_flagged"]
+        summary["anomaly_sessions_flagged"] = report["summary"]["sessions_flagged"]
+
+        if args.fail_on_flag and (
+            report["summary"]["global_flagged"] or report["summary"]["sessions_flagged"] > 0
+        ):
+            print(json.dumps(summary, sort_keys=True))
+            return 2
 
     print(json.dumps(summary, sort_keys=True))
     return 0
