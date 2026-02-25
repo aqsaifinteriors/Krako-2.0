@@ -11,6 +11,7 @@ from typing import Any
 from krako2.agent.claim_index import is_claimed, record_claim, rebuild_from_event_log
 from krako2.billing.money import quant6, serialize_decimal
 from krako2.domain.models import EventType
+from krako2.llm.client import LLMClient, build_llm_client
 from krako2.storage.event_log import EventLog
 from krako2.telemetry.publisher import EventPublisher
 
@@ -25,6 +26,8 @@ class NodeAgent:
         event_log_path: str | Path | None = None,
         state_path: str | Path | None = None,
         claim_index_path: str | Path | None = None,
+        llm_client: LLMClient | None = None,
+        llm_provider: str | None = None,
         publisher: EventPublisher | None = None,
     ) -> None:
         self.node_id = node_id
@@ -43,6 +46,13 @@ class NodeAgent:
         self.event_log_path.touch(exist_ok=True)
 
         self.publisher = publisher or EventPublisher(EventLog(self.event_log_path))
+        if llm_client is None:
+            client, provider = build_llm_client()
+            self.llm_client = client
+            self.llm_provider = llm_provider or provider
+        else:
+            self.llm_client = llm_client
+            self.llm_provider = llm_provider or "custom"
 
         default_state = {
             "last_offset_bytes": 0,
@@ -242,7 +252,87 @@ class NodeAgent:
         )
         return created
 
-    def _emit_completed(self, dispatch_event: dict[str, Any], payload: dict[str, Any]) -> bool:
+    @staticmethod
+    def _is_llm_pod_dispatch(payload: dict[str, Any]) -> bool:
+        kind = payload.get("kind")
+        if isinstance(kind, str) and kind == "llm_pod":
+            return True
+        work_unit_kind = payload.get("work_unit_kind")
+        if isinstance(work_unit_kind, str) and work_unit_kind == "llm_pod":
+            return True
+        # Inference fallback when explicit kind is absent.
+        return "prompt" in payload or "model" in payload
+
+    def _emit_llm_invocation_completed(
+        self,
+        dispatch_event: dict[str, Any],
+        payload: dict[str, Any],
+        model: str,
+        result: dict[str, Any],
+    ) -> int:
+        work_unit_id = str(dispatch_event.get("work_unit_id", ""))
+        dispatch_event_id = str(dispatch_event.get("id", ""))
+        tokens_in = int(result.get("tokens_in", 0))
+        tokens_out = int(result.get("tokens_out", 0))
+        total_tokens = int(result.get("total_tokens", tokens_in + tokens_out))
+        latency_ms = int(result.get("latency_ms", 0))
+        llm_payload = {
+            "execution_session_id": payload.get("execution_session_id"),
+            "work_unit_id": work_unit_id,
+            "node_id": self.node_id,
+            "model": model,
+            "tokens_in": tokens_in,
+            "tokens_out": tokens_out,
+            "total_tokens": total_tokens,
+            "latency_ms": latency_ms,
+            "provider": self.llm_provider,
+        }
+        self.publisher.emit(
+            EventType.LLM_INVOCATION_COMPLETED,
+            idempotency_key=f"llm:complete:{work_unit_id}:{dispatch_event_id}",
+            work_unit_id=work_unit_id,
+            payload=llm_payload,
+        )
+        return total_tokens
+
+    def _emit_llm_invocation_failed(
+        self,
+        dispatch_event: dict[str, Any],
+        payload: dict[str, Any],
+        model: str,
+        reason: str,
+    ) -> None:
+        work_unit_id = str(dispatch_event.get("work_unit_id", ""))
+        dispatch_event_id = str(dispatch_event.get("id", ""))
+        llm_payload = {
+            "execution_session_id": payload.get("execution_session_id"),
+            "work_unit_id": work_unit_id,
+            "node_id": self.node_id,
+            "model": model,
+            "provider": self.llm_provider,
+            "error_code": "llm_invocation_error",
+            "error_reason": reason,
+        }
+        self.publisher.emit(
+            EventType.LLM_INVOCATION_FAILED,
+            idempotency_key=f"llm:fail:{work_unit_id}:{dispatch_event_id}",
+            work_unit_id=work_unit_id,
+            payload=llm_payload,
+        )
+
+    def _invoke_llm_for_dispatch(self, dispatch_event: dict[str, Any], payload: dict[str, Any]) -> int:
+        prompt = str(payload.get("prompt", "hello"))
+        model = str(payload.get("model", "stub-1"))
+        result = self.llm_client.invoke(prompt=prompt, model=model)
+        return self._emit_llm_invocation_completed(dispatch_event, payload, model, result)
+
+    def _emit_completed(
+        self,
+        dispatch_event: dict[str, Any],
+        payload: dict[str, Any],
+        *,
+        llm_tokens_override: int | None = None,
+    ) -> bool:
         work_unit_id = dispatch_event.get("work_unit_id")
         dispatch_event_id = dispatch_event.get("id")
 
@@ -253,7 +343,9 @@ class NodeAgent:
             "tenant_id": str(payload.get("tenant_id", "default")),
             "correlation_id": str(payload.get("correlation_id", f"sess:{work_unit_id}")),
             "cpu_seconds": serialize_decimal(cpu_seconds),
-            "llm_tokens": int(payload.get("llm_tokens", 0)),
+            "llm_tokens": (
+                int(llm_tokens_override) if llm_tokens_override is not None else int(payload.get("llm_tokens", 0))
+            ),
             "selected_node_id": self.node_id,
             "attempt_index": int(payload.get("attempt_index", 1)),
             "execution_session_id": payload.get("execution_session_id"),
@@ -316,9 +408,17 @@ class NodeAgent:
             self.emit_heartbeat()
 
             try:
+                llm_tokens_override: int | None = None
+                if self._is_llm_pod_dispatch(payload):
+                    try:
+                        llm_tokens_override = self._invoke_llm_for_dispatch(event, payload)
+                    except Exception as exc:
+                        model = str(payload.get("model", "stub-1"))
+                        self._emit_llm_invocation_failed(event, payload, model, str(exc))
+                        raise
                 simulated_ms = int(payload.get("simulated_ms", 50))
                 time.sleep(max(0, simulated_ms) / 1000.0)
-                self._emit_completed(event, payload)
+                self._emit_completed(event, payload, llm_tokens_override=llm_tokens_override)
             except Exception as exc:  # pragma: no cover - guarded by tests through normal path
                 self._emit_failed(event, payload, str(exc))
             finally:

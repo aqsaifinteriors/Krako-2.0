@@ -234,8 +234,12 @@ def run_demo(args: argparse.Namespace) -> dict[str, Any]:
                 "llm_tokens": llm_tokens,
                 "attempt_index": 1,
                 "priority": args.priority,
+                "kind": args.kind,
             },
         )
+        if args.kind == "llm_pod":
+            work_unit.payload["prompt"] = "Tell me a joke about kraken."
+            work_unit.payload["model"] = "stub-1"
 
         nodes = NodeRegistry(registry_path=data_dir / "node_registry.json").list_nodes()
         if _has_demo_completion(event_log, work_unit.id, effective_node_id, execution_session_id):
@@ -327,11 +331,17 @@ def run_demo(args: argparse.Namespace) -> dict[str, Any]:
 
     claim_count = 0
     completed_count = 0
+    llm_invocations_completed_count = 0
+    total_llm_tokens_reported = 0
     for event in event_log.read_events():
         if event.type.value == "workunit.claimed":
             claim_count += 1
         if event.type.value == "workunit.completed":
             completed_count += 1
+        if event.type.value == "llm.invocation.completed":
+            llm_invocations_completed_count += 1
+            payload = event.payload if isinstance(event.payload, dict) else {}
+            total_llm_tokens_reported += int(payload.get("total_tokens", 0))
     claim_index_size = 0
     try:
         claim_index_size = len(load_index(data_dir / "claim_index.json").get("claims", {}))
@@ -369,6 +379,8 @@ def run_demo(args: argparse.Namespace) -> dict[str, Any]:
         "claimed_count": claim_count,
         "claim_index_size": claim_index_size,
         "completed_count": completed_count,
+        "llm_invocations_completed_count": llm_invocations_completed_count,
+        "total_llm_tokens_reported": total_llm_tokens_reported,
         "billing": {"records_written": billed, "trust_updates": trust_updates},
         "wallet": {
             "grand_total_debit_usd": wallet["grand_total_debit_usd"],

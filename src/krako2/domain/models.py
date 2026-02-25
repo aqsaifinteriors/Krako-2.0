@@ -30,6 +30,8 @@ class EventType(str, Enum):
     WORKUNIT_CLAIMED = "workunit.claimed"
     WORKUNIT_COMPLETED = "workunit.completed"
     WORKUNIT_FAILED = "workunit.failed"
+    LLM_INVOCATION_COMPLETED = "llm.invocation.completed"
+    LLM_INVOCATION_FAILED = "llm.invocation.failed"
     WORKUNIT_RETRY_SCHEDULED = "workunit.retry.scheduled"
     WORKUNIT_RETRY_DROPPED = "workunit.retry.dropped"
     CONGESTION_MODE_CHANGED = "congestion.mode.changed"
