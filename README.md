@@ -1,15 +1,23 @@
-![Krako Logo](assets/Krako_Logo_Main_2.0.png)
+<p align="center">
+  <img src="assets/krako-logo-main.png" alt="Krako Logo" width="240">
+</p>
 
-# Krako 2.0
-**Deterministic Distributed Execution Fabric for AI Workloads**
+<h1 align="center">Krako 2.0</h1>
 
-![build](https://img.shields.io/badge/build-dev-orange)
-![license](https://img.shields.io/badge/license-Apache--2.0-blue)
-![status](https://img.shields.io/badge/status-active--development-brightgreen)
-![architecture](https://img.shields.io/badge/architecture-event--sourced-purple)
-![execution](https://img.shields.io/badge/execution-deterministic-black)
-![llm](https://img.shields.io/badge/llm-token--metered-teal)
+<p align="center">
+  <strong>Deterministic Distributed Execution Fabric for AI Workloads</strong>
+</p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/build-dev-orange" />
+  <img src="https://img.shields.io/badge/license-Apache--2.0-blue" />
+  <img src="https://img.shields.io/badge/status-active--development-brightgreen" />
+  <img src="https://img.shields.io/badge/architecture-event--sourced-purple" />
+  <img src="https://img.shields.io/badge/execution-deterministic-black" />
+  <img src="https://img.shields.io/badge/llm-token--metered-teal" />
+</p>
+
+<hr>
 ---
 
 # Overview
